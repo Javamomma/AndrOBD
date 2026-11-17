@@ -309,6 +309,11 @@ public class MainActivity extends PluginManager
     private boolean foldAutoOpened = false;
     /** last known window width (dp), to detect unfolding */
     private int lastScreenWidthDp = 0;
+    /** last known day/night mode, to detect theme switches */
+    private int lastNightMode = -1;
+    /** a theme switch waits until the link is down (re-theming rebuilds the screen) */
+    private boolean themeRecreatePending = false;
+    private boolean recreateRequested = false;
     /** preference: open the split view automatically on the big screen */
     private static final String PREF_FOLD_AUTO_OPEN = "fold_auto_open";
     /** test-build launch extra: start demo mode straight into the split view */
@@ -555,6 +560,7 @@ public class MainActivity extends PluginManager
         // on-phone session store for the split view
         SessionRecorder.init(this);
         lastScreenWidthDp = getResources().getConfiguration().screenWidthDp;
+        lastNightMode = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
 
         // Overlay feature has to be set before window content is set
         if (prefs.getBoolean(PREF_AUTOHIDE, false)
@@ -681,6 +687,14 @@ public class MainActivity extends PluginManager
     public void onConfigurationChanged(@androidx.annotation.NonNull Configuration newConfig)
     {
         super.onConfigurationChanged(newConfig);
+        // day/night switch (system schedule or the app toggle): re-theme, but never mid-drive
+        int nightMode = newConfig.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        if (lastNightMode != -1 && nightMode != lastNightMode)
+        {
+            recreateWhenSafe(false);
+        }
+        lastNightMode = nightMode;
+
         int widthDp = newConfig.screenWidthDp;
         boolean unfolded = widthDp >= FoldDashboardActivity.SPLIT_MIN_WIDTH_DP
                 && lastScreenWidthDp < FoldDashboardActivity.SPLIT_MIN_WIDTH_DP;
@@ -689,6 +703,27 @@ public class MainActivity extends PluginManager
         {
             maybeAutoOpenFoldView(true);
         }
+    }
+
+    /**
+     * Rebuild the screen (new theme) now if no link is up, otherwise once it is down.
+     * Rebuilding runs onDestroy(), which would stop the adapter connection.
+     */
+    private void recreateWhenSafe(boolean userAction)
+    {
+        if (recreateRequested) return;
+        if (mode == MODE.ONLINE || mode == MODE.DEMO)
+        {
+            if (userAction && !themeRecreatePending)
+            {
+                Toast.makeText(this, "Theme switches after you disconnect", Toast.LENGTH_SHORT).show();
+            }
+            themeRecreatePending = true;
+            return;
+        }
+        themeRecreatePending = false;
+        recreateRequested = true;
+        recreate();
     }
 
     /**
@@ -1825,7 +1860,7 @@ public class MainActivity extends PluginManager
         AppCompatDelegate.setDefaultNightMode(wanted);
         if (changed && recreateIfChanged)
         {
-            recreate();
+            recreateWhenSafe(true);
         }
     }
 
@@ -2137,6 +2172,16 @@ public class MainActivity extends PluginManager
             setStatus(mode.toString());
             if (mode == MODE.OFFLINE) foldAutoOpened = false;
             publishLink();
+            if (mode == MODE.OFFLINE && themeRecreatePending)
+            {
+                // apply a deferred theme switch (not while being destroyed)
+                mHandler.post(() -> {
+                    if (themeRecreatePending && getMode() == MODE.OFFLINE && !isFinishing() && !isDestroyed())
+                    {
+                        recreateWhenSafe(false);
+                    }
+                });
+            }
 
             // Update menu visibility after mode change
             updateMenuVisibility();

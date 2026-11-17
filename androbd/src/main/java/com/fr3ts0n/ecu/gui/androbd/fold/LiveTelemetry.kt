@@ -127,9 +127,13 @@ object LiveTelemetry {
 
     @JvmStatic
     fun register(pv: EcuDataPv) {
+        // read the PV (which takes the PV's own lock) before taking ours: the comm thread
+        // holds the PV lock while it calls onSample(), so the opposite order could deadlock
         val key = keyOf(pv)
+        val graphable = isGraphable(pv)
+        val label = pv.get(EcuDataPv.FID_DESCRIPT)?.toString()?.trim().orEmpty().ifEmpty { key }
         synchronized(this) {
-            if (!isGraphable(pv)) {
+            if (!graphable) {
                 textOnly.add(key)
                 return
             }
@@ -137,10 +141,18 @@ object LiveTelemetry {
             if (existing != null) {
                 existing.pv = pv
             } else {
-                val label = pv.get(EcuDataPv.FID_DESCRIPT)?.toString()?.trim().orEmpty().ifEmpty { key }
                 entries[key] = Entry(pv, ChannelInfo(key, label, entries.size), SampleRing(CAPACITY))
             }
         }
+    }
+
+    /** forget everything from the previous link (new car, demo -> real adapter …) */
+    private fun clearLive() {
+        synchronized(this) {
+            entries.clear()
+            textOnly.clear()
+        }
+        lastSampleAt = 0L
     }
 
     @JvmStatic
@@ -161,9 +173,14 @@ object LiveTelemetry {
 
     @JvmStatic
     fun setLink(newMode: LinkMode, device: String?) {
+        val previous = mode
         mode = newMode
         deviceName = device
-        if (newMode != LinkMode.ONLINE && newMode != LinkMode.DEMO) SessionRecorder.endSession()
+        if (newMode != previous) {
+            // every link change ends the session (demo data never mixes with a real drive)
+            SessionRecorder.endSession()
+            if (newMode == LinkMode.ONLINE || newMode == LinkMode.DEMO) clearLive()
+        }
     }
 
     @JvmStatic

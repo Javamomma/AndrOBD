@@ -69,7 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -888,16 +888,21 @@ private fun StatusPill(mode: LinkMode, device: String?, fresh: Boolean) {
 
 @Composable
 private fun PulseDot(color: Color, pulsing: Boolean) {
-    val t = rememberInfiniteTransition(label = "pulse")
-    val k by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "k")
     Box(Modifier.size(10.dp), contentAlignment = Alignment.Center) {
         if (pulsing) {
+            val t = rememberInfiniteTransition(label = "pulse")
+            val k by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "k")
+            // read the animation only while drawing: no recomposition per frame
             Box(
                 Modifier
                     .size(10.dp)
-                    .scale(1f + k * 1.2f)
+                    .graphicsLayer {
+                        scaleX = 1f + k * 1.2f
+                        scaleY = 1f + k * 1.2f
+                        alpha = 1f - k
+                    }
                     .clip(CircleShape)
-                    .background(color.copy(alpha = (1f - k) * 0.45f))
+                    .background(color.copy(alpha = 0.45f))
             )
         }
         Box(Modifier.size(7.dp).clip(CircleShape).background(color))

@@ -42,7 +42,7 @@
         tools:replace="android:label">
         <activity
             android:name=".MainActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|density"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|density|uiMode"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -98,6 +98,7 @@
             android:configChanges="touchscreen|orientation|screenSize|smallestScreenSize|screenLayout" />
         <activity
             android:name=".fold.FoldDashboardActivity"
+            android:launchMode="singleTop"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|smallestScreenSize|screenLayout|density|uiMode"
             android:label="@string/fold_view"
             android:theme="@style/FoldTheme" />

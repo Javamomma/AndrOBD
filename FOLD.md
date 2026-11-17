@@ -6,6 +6,9 @@ Everything else in AndrOBD works as upstream; this fork adds:
 - **Fold/unfold keeps the connection.** `MainActivity` handles size changes itself
   (`configChanges` incl. `smallestScreenSize|screenLayout|density`). Upstream, the activity was
   rebuilt on fold/unfold, and `onDestroy()` stops the adapter link (and can switch Bluetooth off).
+- **Day/night switches wait for the link to drop.** `uiMode` is handled too; a theme change
+  (system schedule at sunset, or the app toggle) re-themes the classic screen only once no
+  adapter / demo link is up, because re-theming rebuilds the screen.
 - **Split view** (`fold/FoldDashboardActivity`, Jetpack Compose): on the inner screen (≥ 600 dp)
   the sensor list sits on the left, up to 4 live graphs on the right (30 s / 2 m / 10 m / all,
   min/avg/max, press-and-hold to read a value). On the cover screen it is a list; tap a sensor
@@ -16,6 +19,9 @@ Everything else in AndrOBD works as upstream; this fork adds:
   data arrives for 60 s. **Saved sessions** (menu, or the clock icon in the split view) lists
   them; open one to replay its graphs, export it as CSV (share icon), or delete it.
   Status flags / code lists (text values) are not graphed or recorded.
+- **Library change:** `EcuDataItem` now fires `PV_MODIFIED` on every reading, not only when the
+  value changes, so steady values (parked at 0 km/h, warm coolant) are graphed and recorded.
+  Side effect: AndrOBD's own charts and plugins (MQTT) also get every reading.
 
 ## Build & install
 

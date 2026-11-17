@@ -145,6 +145,22 @@ class EcuDataItemTest
 		assertEquals(100.0f, ((Number) value).floatValue(), 0.001f);
 	}
 
+	/** every reading fires PV_MODIFIED, also when the value did not change (charts, recorders) */
+	@Test
+	void updatePvFomBuffer_firesOnEveryReading()
+	{
+		EcuDataItem item = makeItem8bit();
+		final int[] events = {0};
+		PvChangeListener l = e -> {
+			if (EcuDataPv.FIELDS[EcuDataPv.FID_VALUE].equals(e.getKey())) events[0]++;
+		};
+		item.pv.addPvChangeListener(l, PvChangeEvent.PV_MODIFIED);
+		item.updatePvFomBuffer(new char[]{0x64});
+		item.updatePvFomBuffer(new char[]{0x64});
+		item.updatePvFomBuffer(new char[]{0x64});
+		assertEquals(3, events[0]);
+	}
+
 	/** updatePvFomBuffer returns the configured update period */
 	@Test
 	void updatePvFomBuffer_returnsUpdatePeriod()

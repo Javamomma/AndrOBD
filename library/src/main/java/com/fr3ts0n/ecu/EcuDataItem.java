@@ -18,6 +18,8 @@
 
 package com.fr3ts0n.ecu;
 
+import com.fr3ts0n.pvs.PvChangeEvent;
+
 import com.fr3ts0n.prot.ProtUtils;
 import com.fr3ts0n.prot.ProtoHeader;
 
@@ -304,7 +306,9 @@ public class EcuDataItem
 			// if consecutive conversion error counter not exceeded
 			if(currErrorCount < MAX_ERROR_COUNT)
 			{
-				pv.put(EcuDataPv.FID_VALUE, result);
+				// fire PV_MODIFIED on every reading (not only on change), so listeners
+				// such as charts / recorders also see steady values
+				pv.put(pv.getFields()[EcuDataPv.FID_VALUE], result, PvChangeEvent.PV_MODIFIED);
 				pv.put(EcuDataPv.FID_UNITS, pv.getUnits());
 				log.fine(String.format("%02X %-30s %16s %s",
 										pid,

@@ -85,8 +85,8 @@ object SessionRecorder {
     const val SOURCE_LIVE = "live"
 
     private const val TAG = "FoldRecorder"
+    /** no reading for this long (engine off, adapter silent) ends the session */
     private const val GAP_MS = 60_000L
-    private const val MIN_INTERVAL_MS = 100L
 
     private class Pending(val key: String, val label: String, val units: String, val order: Int, val t: Long, val v: Float)
 
@@ -102,7 +102,6 @@ object SessionRecorder {
     private var sessionSamples = 0
     private var lastT = 0L
     private val channelIds = HashMap<String, Long>()
-    private val lastStored = HashMap<String, Long>()
 
     /** start time of the session being recorded, or 0 if none (read by the UI) */
     @Volatile
@@ -149,11 +148,20 @@ object SessionRecorder {
         sessionId = -1L
         sessionSamples = 0
         channelIds.clear()
-        lastStored.clear()
         recordingSince = 0L
     }
 
     private fun flush() {
+        try {
+            flushQueue()
+        } catch (e: Exception) {
+            // never keep pointing at rows a rolled-back transaction removed
+            closeSession()
+            throw e
+        }
+    }
+
+    private fun flushQueue() {
         val db = helper?.writableDatabase ?: return
         if (queue.isEmpty()) {
             if (sessionId >= 0 && System.currentTimeMillis() - lastT > GAP_MS) closeSession()
@@ -166,15 +174,12 @@ object SessionRecorder {
                 val p = queue.poll() ?: break
                 if (sessionId >= 0 && p.t - lastT > GAP_MS) closeSession()
                 if (sessionId < 0) openSession(db, p.t)
-                val prev = lastStored[p.key]
-                if (prev != null && p.t - prev < MIN_INTERVAL_MS) continue
                 val channelId = channelIds[p.key] ?: insertChannel(db, p).also { channelIds[p.key] = it }
                 insert.bindLong(1, channelId)
                 insert.bindLong(2, p.t)
                 insert.bindDouble(3, p.v.toDouble())
                 insert.executeInsert()
                 insert.clearBindings()
-                lastStored[p.key] = p.t
                 if (p.t > lastT) lastT = p.t
                 sessionSamples++
             }
@@ -204,7 +209,6 @@ object SessionRecorder {
         sessionSamples = 0
         lastT = t
         channelIds.clear()
-        lastStored.clear()
         recordingSince = t
         changeCount++
     }
@@ -269,10 +273,17 @@ object SessionRecorder {
         return SessionData(summary, channels.map { it.second }, series)
     }
 
+    /** Delete a session. Runs on the recorder thread so the session being recorded is closed first. */
     fun delete(id: Long) {
         val db = helper?.writableDatabase ?: return
-        db.delete("session", "id = ?", arrayOf(id.toString()))
-        changeCount++
+        worker.submit(Runnable {
+            if (id == sessionId) {
+                safely { flush() }
+                closeSession()
+            }
+            safely { db.delete("session", "id = ?", arrayOf(id.toString())) }
+            changeCount++
+        }).get()
     }
 
     fun databaseBytes(context: Context): Long {
@@ -285,7 +296,7 @@ object SessionRecorder {
         val data = load(id) ?: return null
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         val stamp = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.US).format(Date(data.summary.startedAt))
-        val file = File(dir, "androbd-session-$stamp.csv")
+        val file = File(dir, "androbd-session-$stamp-$id.csv")
         val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US)
         file.bufferedWriter().use { w ->
             w.write("time,elapsed_s,key,label,value,units\n")

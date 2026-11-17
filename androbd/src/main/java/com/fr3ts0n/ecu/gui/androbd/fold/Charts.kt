@@ -244,7 +244,7 @@ fun LineChart(
             val tt = from + (to - from) * i / cols
             val text = if (live) relativeLabel(to - tt) else formatDuration(tt - sessionStart)
             val m = measurer.measure(text, axisStyle)
-            val lx = (x - m.size.width / 2f).coerceIn(0f, plotW - m.size.width)
+            val lx = (x - m.size.width / 2f).coerceIn(0f, max(0f, plotW - m.size.width))
             drawText(m, topLeft = Offset(lx, bottom + 4.dp.toPx()))
         }
 
@@ -287,7 +287,7 @@ fun LineChart(
             val padV = 6.dp.toPx()
             val bw = m.size.width + padH * 2
             val bh = m.size.height + padV * 2
-            val bx = (sx - bw / 2f).coerceIn(0f, plotW - bw)
+            val bx = (sx - bw / 2f).coerceIn(0f, max(0f, plotW - bw))
             val by = top
             drawRoundRect(palette.surfaceHigh, Offset(bx, by), Size(bw, bh), CornerRadius(10.dp.toPx()))
             drawRoundRect(color.copy(alpha = 0.6f), Offset(bx, by), Size(bw, bh), CornerRadius(10.dp.toPx()), style = Stroke(1.dp.toPx()))
@@ -313,7 +313,7 @@ fun Sparkline(series: Series, from: Long, to: Long, color: Color, holdToEnd: Boo
 private fun DrawScope.drawLabel(m: TextMeasurer, text: String, style: TextStyle, at: Offset, alignCenterY: Boolean) {
     val r = m.measure(text, style)
     val y = if (alignCenterY) at.y - r.size.height / 2f else at.y
-    drawText(r, topLeft = Offset(at.x, y.coerceIn(0f, size.height - r.size.height)))
+    drawText(r, topLeft = Offset(at.x, y.coerceIn(0f, max(0f, size.height - r.size.height))))
 }
 
 private fun relativeLabel(agoMs: Long): String {

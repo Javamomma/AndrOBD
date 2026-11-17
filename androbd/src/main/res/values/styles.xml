@@ -4,4 +4,10 @@
         <item name="android:activatedBackgroundIndicator">@drawable/activated_background</item>
         <item name="android:fitsSystemWindows">true</item>
     </style>
+    <!-- Theme for the foldable split view (Compose draws everything) -->
+    <style name="FoldTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/fold_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

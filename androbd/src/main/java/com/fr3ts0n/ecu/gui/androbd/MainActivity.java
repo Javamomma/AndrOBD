@@ -64,6 +64,11 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
 
+import com.fr3ts0n.ecu.gui.androbd.fold.FoldDashboardActivity;
+import com.fr3ts0n.ecu.gui.androbd.fold.LinkMode;
+import com.fr3ts0n.ecu.gui.androbd.fold.LiveTelemetry;
+import com.fr3ts0n.ecu.gui.androbd.fold.SessionRecorder;
+import androidx.lifecycle.Lifecycle;
 import com.fr3ts0n.androbd.plugin.Plugin;
 import com.fr3ts0n.androbd.plugin.mgr.PluginManager;
 import com.fr3ts0n.ecu.EcuCodeItem;
@@ -300,6 +305,16 @@ public class MainActivity extends PluginManager
      * current operating mode
      */
     private MODE mode = MODE.OFFLINE;
+    /** split view was opened automatically for the current connection */
+    private boolean foldAutoOpened = false;
+    /** last known window width (dp), to detect unfolding */
+    private int lastScreenWidthDp = 0;
+    /** preference: open the split view automatically on the big screen */
+    private static final String PREF_FOLD_AUTO_OPEN = "fold_auto_open";
+    /** test-build launch extra: start demo mode straight into the split view */
+    private static final String EXTRA_FOLD_DEMO = "fold_demo";
+    /** test-build launch extra: open the split view on "sessions" or "replay_latest" */
+    private static final String EXTRA_FOLD_OPEN = "fold_open";
     /**
      * Handle message requests using modern Handler implementation
      * Compatible with both old and new Android versions
@@ -537,6 +552,9 @@ public class MainActivity extends PluginManager
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
         // register for later changes
         prefs.registerOnSharedPreferenceChangeListener(this);
+        // on-phone session store for the split view
+        SessionRecorder.init(this);
+        lastScreenWidthDp = getResources().getConfiguration().screenWidthDp;
 
         // Overlay feature has to be set before window content is set
         if (prefs.getBoolean(PREF_AUTOHIDE, false)
@@ -626,7 +644,86 @@ public class MainActivity extends PluginManager
             }
         }
 
+        // fork test builds: `am start ... --ez fold_demo true` opens demo data in the split view
+        boolean foldDemo = BuildConfig.FOLD_TEST_HOOKS && getIntent().getBooleanExtra(EXTRA_FOLD_DEMO, false);
+        String foldOpen = BuildConfig.FOLD_TEST_HOOKS ? getIntent().getStringExtra(EXTRA_FOLD_OPEN) : null;
+        if (foldDemo || foldOpen != null)
+        {
+            CommService.medium = CommService.MEDIUM.DEMO;
+        }
+
         initSelectedMode();
+
+        if (foldDemo)
+        {
+            // select live data only after the demo ECU handshake has run,
+            // otherwise the handshake replies leave the PID list empty
+            foldAutoOpened = true;
+            mHandler.postDelayed(() -> {
+                setObdService(ObdProt.OBD_SVC_DATA, null);
+                openFoldView(false);
+            }, 1500);
+        }
+        else if (foldOpen != null)
+        {
+            Intent intent = new Intent(this, FoldDashboardActivity.class);
+            intent.putExtra(FoldDashboardActivity.EXTRA_SESSIONS, true);
+            intent.putExtra(FoldDashboardActivity.EXTRA_OPEN_LATEST, "replay_latest".equals(foldOpen));
+            startActivity(intent);
+        }
+    }
+
+    /**
+     * Keep running through fold / unfold: the window just changes size.
+     * Unfolding while live data is shown opens the split view.
+     */
+    @Override
+    public void onConfigurationChanged(@androidx.annotation.NonNull Configuration newConfig)
+    {
+        super.onConfigurationChanged(newConfig);
+        int widthDp = newConfig.screenWidthDp;
+        boolean unfolded = widthDp >= FoldDashboardActivity.SPLIT_MIN_WIDTH_DP
+                && lastScreenWidthDp < FoldDashboardActivity.SPLIT_MIN_WIDTH_DP;
+        lastScreenWidthDp = widthDp;
+        if (unfolded)
+        {
+            maybeAutoOpenFoldView(true);
+        }
+    }
+
+    /**
+     * Open the foldable split view (live list + graphs), or its saved sessions
+     */
+    private void openFoldView(boolean sessions)
+    {
+        Intent intent = new Intent(this, FoldDashboardActivity.class);
+        intent.putExtra(FoldDashboardActivity.EXTRA_SESSIONS, sessions);
+        startActivity(intent);
+    }
+
+    /**
+     * Open the split view by itself when live data runs on the big screen
+     *
+     * @param onUnfold true if triggered by unfolding the phone
+     */
+    private void maybeAutoOpenFoldView(boolean onUnfold)
+    {
+        if (obdService != ObdProt.OBD_SVC_DATA) return;
+        if (mode != MODE.ONLINE && mode != MODE.DEMO) return;
+        if (getResources().getConfiguration().screenWidthDp < FoldDashboardActivity.SPLIT_MIN_WIDTH_DP) return;
+        if (!prefs.getBoolean(PREF_FOLD_AUTO_OPEN, true)) return;
+        if (foldAutoOpened && !onUnfold) return;
+        if (!getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) return;
+        foldAutoOpened = true;
+        openFoldView(false);
+    }
+
+    /**
+     * Tell the split view / recorder about the current link state
+     */
+    private void publishLink()
+    {
+        LiveTelemetry.setLink(LinkMode.valueOf(mode.name()), mConnectedDeviceName);
     }
 
     /**
@@ -974,6 +1071,16 @@ public class MainActivity extends PluginManager
                 // Launch settings activity for app configuration
                 Intent settingsIntent = new Intent(this, SettingsActivity.class);
                 startActivityForResult(settingsIntent, REQUEST_SETTINGS);
+                return true;
+            }
+
+            if(id == R.id.fold_view) {
+                openFoldView(false);
+                return true;
+            }
+
+            if(id == R.id.fold_sessions) {
+                openFoldView(true);
                 return true;
             }
 
@@ -2028,6 +2135,8 @@ public class MainActivity extends PluginManager
             // set new mode
             this.mode = mode;
             setStatus(mode.toString());
+            if (mode == MODE.OFFLINE) foldAutoOpened = false;
+            publishLink();
 
             // Update menu visibility after mode change
             updateMenuVisibility();
@@ -2212,6 +2321,7 @@ public class MainActivity extends PluginManager
         if (getMode() != MODE.DEMO)
         {
             mode = MODE.DEMO;
+            publishLink();
             setStatus(getString(R.string.demo));
             Toast.makeText(this, getString(R.string.demo_started), Toast.LENGTH_SHORT).show();
 
@@ -2365,6 +2475,8 @@ public class MainActivity extends PluginManager
         // remember this as current OBD service
         obdService = newObdService;
         ignoreNrcs = false;
+        // only live data (service 1) is graphed / recorded by the split view
+        LiveTelemetry.setLiveService(newObdService == ObdProt.OBD_SVC_DATA);
 
         // set list view
         setContentView(mListView);
@@ -2438,6 +2550,9 @@ public class MainActivity extends PluginManager
         {
             prefs.edit().putInt(PRESELECT.LAST_SERVICE.toString(), newObdService).apply();
         }
+
+        // live data on the unfolded screen -> split view
+        maybeAutoOpenFoldView(false);
     }
 
     /**
@@ -2555,6 +2670,7 @@ public class MainActivity extends PluginManager
         stopDemoService();
 
         mode = MODE.ONLINE;
+        publishLink();
         // Menu visibility will be handled by updateMenuVisibility() call in setMode
         
         setMenuItemEnable(R.id.obd_services, true);

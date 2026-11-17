@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- two panes: list on the left, chart on the right -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M4,4h16a2,2 0,0 1,2 2v12a2,2 0,0 1,-2 2H4a2,2 0,0 1,-2 -2V6a2,2 0,0 1,2 -2zM4,6v12h5V6H4zM11,6v12h9V6h-9zM5,8h3v1.5H5V8zM5,11h3v1.5H5V11zM5,14h3v1.5H5V14zM12,15l2.5,-3.5 2,2 3,-4.5V17h-7.5z"/>
+</vector>

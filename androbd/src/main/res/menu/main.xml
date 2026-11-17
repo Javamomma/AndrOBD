@@ -26,6 +26,16 @@
         android:visible="false"
         app:showAsAction="always" />
 
+    <!-- Foldable split view: live list + graphs, saved sessions -->
+    <item
+        android:id="@+id/fold_view"
+        android:icon="@drawable/ic_split_view"
+        android:title="@string/fold_view"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/fold_sessions"
+        android:title="@string/fold_sessions" />
+
     <!-- Data Management Group -->
     <item
         android:id="@+id/save"

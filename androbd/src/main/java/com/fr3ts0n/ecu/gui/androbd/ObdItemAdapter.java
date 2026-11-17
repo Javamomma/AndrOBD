@@ -33,6 +33,7 @@ import com.fr3ts0n.androbd.plugin.mgr.PluginManager;
 import com.fr3ts0n.ecu.Conversion;
 import com.fr3ts0n.ecu.EcuDataItem;
 import com.fr3ts0n.ecu.EcuDataPv;
+import com.fr3ts0n.ecu.gui.androbd.fold.LiveTelemetry;
 import com.fr3ts0n.pvs.IndexedProcessVar;
 import com.fr3ts0n.pvs.PvChangeEvent;
 import com.fr3ts0n.pvs.PvChangeListener;
@@ -279,6 +280,14 @@ class ObdItemAdapter extends ArrayAdapter<Object>
                     }
                 }
 
+                // feed the foldable split view + on-phone session recorder
+                if (pv instanceof EcuDataPv
+                    && event.getValue() instanceof Number
+                    && EcuDataPv.FIELDS[EcuDataPv.FID_VALUE].equals(event.getKey()))
+                {
+                    LiveTelemetry.onSample((EcuDataPv) pv, event.getTime(), (Number) event.getValue());
+                }
+
                 // send update to plugin handler
                 if (PluginManager.pluginHandler != null)
                 {
@@ -305,6 +314,11 @@ class ObdItemAdapter extends ArrayAdapter<Object>
                 series = new XYSeries(String.valueOf(pv.get(EcuDataPv.FID_DESCRIPT)));
                 pv.put(FID_DATA_SERIES, series);
                 pv.addPvChangeListener(dataChangeHandler, PvChangeEvent.PV_MODIFIED);
+            }
+            // make the item known to the foldable split view
+            if (pv instanceof EcuDataPv)
+            {
+                LiveTelemetry.register((EcuDataPv) pv);
             }
 
             // assemble data items for plugin notification

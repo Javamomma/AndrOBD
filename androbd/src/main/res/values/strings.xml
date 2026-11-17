@@ -375,4 +375,7 @@ period of time while the ECU recalibrates itself.
         <item>fr</item>
         <item>es</item>
     </string-array>
+    <!-- foldable split view -->
+    <string name="fold_view">Split view</string>
+    <string name="fold_sessions">Saved sessions</string>
 </resources>

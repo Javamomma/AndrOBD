@@ -8,7 +8,9 @@ Everything else in AndrOBD works as upstream; this fork adds:
   rebuilt on fold/unfold, and `onDestroy()` stops the adapter link (and can switch Bluetooth off).
 - **Day/night switches wait for the link to drop.** `uiMode` is handled too; a theme change
   (system schedule at sunset, or the app toggle) re-themes the classic screen only once no
-  adapter / demo link is up, because re-theming rebuilds the screen.
+  adapter / demo link is up, because re-theming rebuilds the screen. **Reset last
+  pre-selections** in the menu waits the same way (upstream rebuilt the screen at once and
+  dropped the link). `FoldSafetyTest` keeps it that way.
 - **Split view** (`fold/FoldDashboardActivity`, Jetpack Compose): on the inner screen (≥ 600 dp)
   the sensor list sits on the left, up to 4 live graphs on the right (30 s / 2 m / 10 m / all,
   min/avg/max, press-and-hold to read a value). On the cover screen it is a list; tap a sensor

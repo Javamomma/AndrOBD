@@ -312,7 +312,7 @@ public class MainActivity extends PluginManager
     /** last known day/night mode, to detect theme switches */
     private int lastNightMode = -1;
     /** a theme switch waits until the link is down (re-theming rebuilds the screen) */
-    private boolean themeRecreatePending = false;
+    private boolean recreatePending = false;
     private boolean recreateRequested = false;
     /** preference: open the split view automatically on the big screen */
     private static final String PREF_FOLD_AUTO_OPEN = "fold_auto_open";
@@ -706,7 +706,7 @@ public class MainActivity extends PluginManager
     }
 
     /**
-     * Rebuild the screen (new theme) now if no link is up, otherwise once it is down.
+     * Rebuild the screen (new theme, reset pre-selections) now if no link is up, otherwise once it is down.
      * Rebuilding runs onDestroy(), which would stop the adapter connection.
      */
     private void recreateWhenSafe(boolean userAction)
@@ -714,14 +714,14 @@ public class MainActivity extends PluginManager
         if (recreateRequested) return;
         if (mode == MODE.ONLINE || mode == MODE.DEMO)
         {
-            if (userAction && !themeRecreatePending)
+            if (userAction && !recreatePending)
             {
-                Toast.makeText(this, "Theme switches after you disconnect", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Applies after you disconnect", Toast.LENGTH_SHORT).show();
             }
-            themeRecreatePending = true;
+            recreatePending = true;
             return;
         }
-        themeRecreatePending = false;
+        recreatePending = false;
         recreateRequested = true;
         recreate();
     }
@@ -1098,7 +1098,7 @@ public class MainActivity extends PluginManager
             // Application Settings and Configuration
             if(id == R.id.reset_preselections) {
                 clearPreselections();
-                recreate();
+                recreateWhenSafe(true);
                 return true;
             }
 
@@ -2172,11 +2172,11 @@ public class MainActivity extends PluginManager
             setStatus(mode.toString());
             if (mode == MODE.OFFLINE) foldAutoOpened = false;
             publishLink();
-            if (mode == MODE.OFFLINE && themeRecreatePending)
+            if (mode == MODE.OFFLINE && recreatePending)
             {
                 // apply a deferred theme switch (not while being destroyed)
                 mHandler.post(() -> {
-                    if (themeRecreatePending && getMode() == MODE.OFFLINE && !isFinishing() && !isDestroyed())
+                    if (recreatePending && getMode() == MODE.OFFLINE && !isFinishing() && !isDestroyed())
                     {
                         recreateWhenSafe(false);
                     }
